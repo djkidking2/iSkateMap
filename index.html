@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>iSkate - Find Local Skateparks</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.css"
+    />
+    <style>
+      /* Reset some default styles for better responsiveness */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      /* Style the app header */
+      .app-header {
+        background-color: #3498db;
+        color: #fff;
+        text-align: center;
+        padding: 20px;
+      }
+
+      /* Style the content area */
+      .content {
+        padding: 20px;
+      }
+
+      /* Container for skatepark cards */
+      .skatepark-cards {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      /* Style skatepark cards */
+      .skatepark-card {
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin: 10px;
+        background-color: #fff;
+        box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        border-radius: 5px;
+        display: flex;
+        flex-direction: column;
+        width: 200px; /* Card width */
+      }
+
+      .skatepark-card h4 {
+        margin-bottom: 10px;
+      }
+
+      .skatepark-card img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 5px;
+        margin: 10px 0;
+      }
+
+      .go-to-park-button {
+        background-color: #3498db;
+        color: #fff;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 10px;
+        font-weight: bold;
+        transition: background-color 0.3s ease;
+      }
+
+      .go-to-park-button:hover {
+        background-color: #2980b9;
+      }
+
+      /* Style the map container */
+      #map {
+        width: 100%;
+        height: 300px;
+        margin-top: 20px;
+      }
+
+      /* Style the location sync button */
+      .sync-button {
+        background-color: #3498db;
+        color: #fff;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-header">
+      <h1>iSkate - Find Local Skateparks</h1>
+    </div>
+
+    <div class="content">
+      <h2>Welcome to iSkate!</h2>
+      <p>
+        Find the best skateparks in your area and beyond. Explore skate spots,
+        ramps, and more.
+      </p>
+
+      <h3>Locate Skateparks Near You</h3>
+      <p>
+        Click the button below to sync your location and find skateparks nearby:
+      </p>
+      <button class="sync-button" onclick="syncLocationWithCloud()">
+        Sync Location
+      </button>
+      <p>
+        <strong>Current Location:</strong>
+        <span id="location-info">Location data will appear here.</span>
+      </p>
+      <h3>Skatepark Map</h3>
+      <div id="map"></div>
+      <h3>Local Skateparks</h3>
+      <!-- Container for skatepark cards -->
+      <div class="skatepark-cards" id="skatepark-list">
+        <!-- Skatepark cards will be generated here -->
+      </div>
+    </div>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.js"></script>
+
+    <script>
+      // Declare the map object in a higher scope
+      let map;
+      // Declare the routing control in a higher scope
+      let routingControl;
+
+      // Define skatepark data with images
+      const skateparks = [
+        {
+          name: "Carroll Park Skatepark",
+          description:
+            "Located in Southwest Baltimore, Carroll Park Skatepark is a popular spot for skateboarders. It features various ramps, rails, and obstacles.",
+          image: "assets/carroll_park_skate_park.jpg",
+          lat: 39.281,
+          lon: -76.63882,
+        },
+        {
+          name: "Skatepark of Baltimore (Approximate)",
+          description:
+            "This indoor skatepark is situated in the Remington neighborhood and provides a sheltered location for skateboarding year-round.",
+          image: "assets/skatepark_of_baltimore.jpg",
+          lat: 39.33027,
+          lon: -76.63604,
+        },
+        {
+          name: "Rash Field Skatepark (Jake's Skatepark)",
+          description:
+            "Located at Rash Field in the Inner Harbor area, this skatepark offers a scenic view of the waterfront along with skateboarding facilities.",
+          image: "assets/jakes_skatepark.jpg",
+          lat: 39.28151,
+          lon: -76.6108,
+        },
+        {
+          name: "Charm City Skate Park (Approximate)",
+          description:
+            "Charm City Skatepark is a 28,000-sq.-ft. venue designed for skateboarders, inline skaters, and BMX bikers, offering open skating and exciting events.",
+          image: "assets/charm_city_skate_park.jpg",
+          lat: 39.28037,
+          lon: -76.55899,
+        },
+        // Add more skatepark data here
+    ];
+
+      // Function to create skatepark cards and map markers
+      function createSkateparkCardsAndMarkers() {
+        const skateparkList = document.getElementById("skatepark-list");
+        map = L.map("map").setView([skateparks[0].lat, skateparks[0].lon], 12);
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        }).addTo(map);
+
+        skateparks.forEach((skatepark) => {
+          // Create a skatepark card
+          const card = document.createElement("div");
+          card.className = "skatepark-card";
+          card.innerHTML = `<h4>${skatepark.name}</h4>
+                <img src="${skatepark.image}" alt="${skatepark.name}">
+                <p>${skatepark.description}</p>
+                <button class="go-to-park-button"  onclick="goToPark(${skatepark.lat}, ${skatepark.lon})">Go to Park</button>`;
+          skateparkList.appendChild(card);
+
+          // Create a map marker
+          L.marker([skatepark.lat, skatepark.lon])
+            .addTo(map)
+            .bindPopup(skatepark.name);
+        });
+      }
+
+      // Function to zoom to a specific park's location and show directions
+      function goToPark(latitude, longitude) {
+        map.setView([latitude, longitude], 15);
+
+        // Remove previous routing if exists
+        if (routingControl) {
+          map.removeControl(routingControl);
+        }
+
+        // Create routing control to show directions
+        routingControl = L.Routing.control({
+          waypoints: [
+            L.latLng(latitude, longitude),
+            L.latLng(map.getCenter().lat, map.getCenter().lng), // User's current location
+          ],
+        }).addTo(map);
+      }
+
+      // Function to sync location (sample function, not real synchronization)
+      function syncLocationWithCloud() {
+        if ("geolocation" in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            function (position) {
+              const latitude = position.coords.latitude;
+              const longitude = position.coords.longitude;
+              const locationInfo = `Latitude: ${latitude}, Longitude: ${longitude}`;
+              document.getElementById("location-info").textContent =
+                locationInfo;
+
+              // You can use the latitude and longitude to find nearby skateparks on the map
+              // Replace this with your actual map integration logic
+            },
+            function (error) {
+              console.error("Error getting location:", error.message);
+            }
+          );
+        } else {
+          alert("Geolocation is not supported in your browser.");
+        }
+      }
+
+      // Call the function to generate skatepark cards and map markers
+      createSkateparkCardsAndMarkers();
+    </script>
+  </body>
+</html>
+
+
